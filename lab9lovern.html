@@ -1,0 +1,210 @@
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Smoothed D3.js Radar Chart</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Raleway" rel="stylesheet" type="text/css">
+
+  <!-- D3.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js" charset="utf-8"></script>
+
+  <style>
+    body {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 300;
+      fill: #242424;
+      text-align: center;
+      text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, -1px 0 0 #fff, 0 -1px 0 #fff;
+      cursor: default;
+    }
+
+    .legend {
+      font-family: 'Raleway', sans-serif;
+      fill: #333333;
+    }
+
+    .tooltip {
+      fill: #333333;
+    }
+
+    .radarChart {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="radarChart"></div>
+
+  <script>
+    // Include radarChart.js functionality here directly for simplicity
+    var RadarChart = function(id, data, options) {
+      var cfg = {
+        w: 600,
+        h: 600,
+        margin: { top: 20, right: 20, bottom: 20, left: 20 },
+        levels: 3,
+        maxValue: 0,
+        labelFactor: 1.25,
+        wrapWidth: 60,
+        opacityArea: 0.35,
+        dotRadius: 4,
+        opacityCircles: 0.1,
+        strokeWidth: 2,
+        roundStrokes: true,
+        color: d3.scale.category10()
+      };
+
+      if ('undefined' !== typeof options) {
+        for (var i in options) {
+          if ('undefined' !== typeof options[i]) { cfg[i] = options[i]; }
+        }
+      }
+
+      var maxValue = Math.max(cfg.maxValue, d3.max(data, function(i) {
+        return d3.max(i.map(function(o) { return o.value; }));
+      }));
+
+      var allAxis = data[0].map(function(i) { return i.axis; }),
+        total = allAxis.length,
+        radius = Math.min(cfg.w / 2, cfg.h / 2),
+        angleSlice = Math.PI * 2 / total;
+
+      var rScale = d3.scale.linear()
+        .range([0, radius])
+        .domain([0, maxValue]);
+
+      d3.select(id).select("svg").remove();
+
+      var svg = d3.select(id).append("svg")
+        .attr("width", cfg.w + cfg.margin.left + cfg.margin.right)
+        .attr("height", cfg.h + cfg.margin.top + cfg.margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + (cfg.w / 2 + cfg.margin.left) + "," + (cfg.h / 2 + cfg.margin.top) + ")");
+
+      var axisGrid = svg.append("g").attr("class", "axisWrapper");
+
+      axisGrid.selectAll(".levels")
+        .data(d3.range(1, (cfg.levels + 1)).reverse())
+        .enter()
+        .append("circle")
+        .attr("class", "gridCircle")
+        .attr("r", function(d) { return radius / cfg.levels * d; })
+        .style("fill", "#CDCDCD")
+        .style("stroke", "#CDCDCD")
+        .style("fill-opacity", cfg.opacityCircles);
+
+      var axis = axisGrid.selectAll(".axis")
+        .data(allAxis)
+        .enter()
+        .append("g")
+        .attr("class", "axis");
+
+      axis.append("line")
+        .attr("x1", 0)
+        .attr("y1", 0)
+        .attr("x2", function(d, i) { return radius * Math.cos(angleSlice * i - Math.PI / 2); })
+        .attr("y2", function(d, i) { return radius * Math.sin(angleSlice * i - Math.PI / 2); })
+        .style("stroke", "white")
+        .style("stroke-width", "2px");
+
+      axis.append("text")
+        .attr("class", "legend")
+        .style("font-size", "11px")
+        .attr("text-anchor", "middle")
+        .attr("dy", "0.35em")
+        .attr("x", function(d, i) { return cfg.labelFactor * radius * Math.cos(angleSlice * i - Math.PI / 2); })
+        .attr("y", function(d, i) { return cfg.labelFactor * radius * Math.sin(angleSlice * i - Math.PI / 2); })
+        .text(function(d) { return d; });
+
+      var radarLine = d3.svg.line.radial()
+        .interpolate(cfg.roundStrokes ? "cardinal-closed" : "linear-closed")
+        .radius(function(d) { return rScale(d.value); })
+        .angle(function(d, i) { return i * angleSlice; });
+
+      var blobWrapper = svg.selectAll(".radarWrapper")
+        .data(data)
+        .enter().append("g")
+        .attr("class", "radarWrapper");
+
+      blobWrapper.append("path")
+        .attr("class", "radarArea")
+        .attr("d", function(d) { return radarLine(d); })
+        .style("fill", function(d, i) { return cfg.color(i); })
+        .style("fill-opacity", cfg.opacityArea);
+
+      blobWrapper.append("path")
+        .attr("class", "radarStroke")
+        .attr("d", function(d) { return radarLine(d); })
+        .style("stroke-width", cfg.strokeWidth + "px")
+        .style("stroke", function(d, i) { return cfg.color(i); })
+        .style("fill", "none");
+
+      blobWrapper.selectAll(".radarCircle")
+        .data(function(d) { return d; })
+        .enter().append("circle")
+        .attr("class", "radarCircle")
+        .attr("r", cfg.dotRadius)
+        .attr("cx", function(d, i) { return rScale(d.value) * Math.cos(angleSlice * i - Math.PI / 2); })
+        .attr("cy", function(d, i) { return rScale(d.value) * Math.sin(angleSlice * i - Math.PI / 2); })
+        .style("fill", function(d, i, j) { return cfg.color(j); })
+        .style("fill-opacity", 0.8);
+    };
+
+    // Radar chart data
+    var margin = { top: 100, right: 100, bottom: 100, left: 100 },
+      width = Math.min(700, window.innerWidth - 10) - margin.left - margin.right,
+      height = Math.min(width, window.innerHeight - margin.top - margin.bottom - 20);
+
+    var data = [
+      [
+        { axis: "Battery Life", value: 0.22 },
+        { axis: "Brand", value: 0.28 },
+        { axis: "Contract Cost", value: 0.29 },
+        { axis: "Design And Quality", value: 0.17 },
+        { axis: "Have Internet Connectivity", value: 0.22 },
+        { axis: "Large Screen", value: 0.02 },
+        { axis: "Price Of Device", value: 0.21 },
+        { axis: "To Be A Smartphone", value: 0.5 }
+      ],
+      [
+        { axis: "Battery Life", value: 0.27 },
+        { axis: "Brand", value: 0.16 },
+        { axis: "Contract Cost", value: 0.35 },
+        { axis: "Design And Quality", value: 0.13 },
+        { axis: "Have Internet Connectivity", value: 0.2 },
+        { axis: "Large Screen", value: 0.13 },
+        { axis: "Price Of Device", value: 0.35 },
+        { axis: "To Be A Smartphone", value: 0.38 }
+      ],
+      [
+        { axis: "Battery Life", value: 0.26 },
+        { axis: "Brand", value: 0.1 },
+        { axis: "Contract Cost", value: 0.3 },
+        { axis: "Design And Quality", value: 0.14 },
+        { axis: "Have Internet Connectivity", value: 0.22 },
+        { axis: "Large Screen", value: 0.04 },
+        { axis: "Price Of Device", value: 0.41 },
+        { axis: "To Be A Smartphone", value: 0.3 }
+      ]
+    ];
+
+    var color = d3.scale.ordinal().range(["#EDC951", "#CC333F", "#00A0B0"]);
+
+    var radarChartOptions = {
+      w: width,
+      h: height,
+      margin: margin,
+      maxValue: 0.5,
+      levels: 5,
+      roundStrokes: true,
+      color: color
+    };
+
+    RadarChart(".radarChart", data, radarChartOptions);
+  </script>
+</body>
+</html>
